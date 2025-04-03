@@ -25,6 +25,7 @@ import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
 import android.os.PowerManager
+import android.os.SystemProperties
 import android.os.UserHandle
 import android.view.WindowManager
 import com.android.internal.util.ScreenshotHelper
@@ -78,6 +79,7 @@ class ScreenUtils @Inject constructor(private val context: Context) {
             context.unbindService(recorderConnection)
         }
         remoteRecording = null
+        bypassCharge(false)
     }
 
     fun takeScreenshot(onComplete: ((Uri?) -> Unit)? = null) {
@@ -98,4 +100,37 @@ class ScreenUtils @Inject constructor(private val context: Context) {
                 wakelock?.takeIf { it.isHeld }?.release()
             }
         }
+
+    fun getBatteryLevel(): Int {
+        val batteryIntent = context.registerReceiver(null, android.content.IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+        return batteryIntent?.getIntExtra(android.os.BatteryManager.EXTRA_LEVEL, -1) ?: -1
+    }
+
+    fun bypassCharge(enable: Boolean) {
+        val bypassEnabledByUser = Settings.System.getIntForUser(
+            context.contentResolver, "smart_charge_by_user", 0,
+            UserHandle.USER_CURRENT
+        ) == 1
+        val autoBypassEnabled = Settings.System.getIntForUser(
+            context.contentResolver, "bypass_charge_enabled", 0,
+            UserHandle.USER_CURRENT
+        ) == 1
+
+        if (!autoBypassEnabled) return
+
+        SystemProperties.set(
+            "persist.sys.battery_health_limit_bypass_level",
+            if (enable) getBatteryLevel().toString() else "80"
+        )
+        
+        if (bypassEnabledByUser) return
+
+        Settings.System.putIntForUser(
+            context.contentResolver,
+            "persist.sys.battery_health_limit_charge",
+            if (enable) 1 else 0,
+            UserHandle.USER_CURRENT
+        )
+        SystemProperties.set("persist.sys.battery_health_limit_charge", if (enable) "true" else "false")
+    }
 }
