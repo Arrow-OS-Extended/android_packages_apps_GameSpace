@@ -27,6 +27,7 @@ import android.os.Looper
 import android.os.PowerManager
 import android.os.SystemProperties
 import android.os.UserHandle
+import android.provider.Settings
 import android.view.WindowManager
 import com.android.internal.util.ScreenshotHelper
 import com.android.systemui.screenrecord.IRemoteRecording
@@ -117,6 +118,11 @@ class ScreenUtils @Inject constructor(private val context: Context) {
         ) == 1
 
         if (!autoBypassEnabled) return
+
+        SystemProperties.set(
+            "persist.sys.battery_health_bypass_enabled",
+            if (enable) "true" else "false"
+        )
 
         SystemProperties.set(
             "persist.sys.battery_health_limit_bypass_level",
